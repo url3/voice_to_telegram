@@ -1,64 +1,61 @@
 import imaplib
 import email
-from email.header import decode_header
-import time
 import requests
-from datetime import datetime
 import os
+from datetime import datetime, timedelta
 
-def parse_email_date(email_date):
-    parsed_date = email.utils.parsedate(email_date)
-    if parsed_date is not None:
-        return time.mktime(parsed_date)
-    return 0  # 返回一个最小值以避免比较时出错
+def send_to_telegram(message):
+    bot_token = os.environ['TELEGRAM_BOT_TOKEN']
+    chat_id = os.environ['TELEGRAM_CHAT_ID']
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    requests.post(url, data={'chat_id': chat_id, 'text': message})
 
-def read_emails(gmail_user, gmail_password, telegram_token, telegram_chat_id):
-    # Connect to Gmail IMAP server
+def main():
+    user = os.environ['GMAIL_USER']
+    password = os.environ['GMAIL_PASS']
+    
+    # 连接到 Gmail
     mail = imaplib.IMAP4_SSL('imap.gmail.com')
-    mail.login(gmail_user, gmail_password)
+    mail.login(user, password)
     mail.select('inbox')
 
-    # Load last checked time
+    # 获取上次记录的时间
     try:
-        with open('last_checked.txt', 'r') as f:
-            last_checked = f.read().strip()
+        with open('time.txt', 'r') as f:
+            since_time = f.read().strip()
+            since_time = datetime.fromisoformat(since_time)
     except FileNotFoundError:
-        last_checked = '1970-01-01 00:00:00'
+        since_time = datetime.now() - timedelta(days=1)  # 默认获取过去一天的邮件
 
-    last_checked_time = parse_email_date(last_checked)
-
-    # Fetch latest emails
-    result, data = mail.search(None, 'ALL')
-    email_ids = data[0].split()[-10:]  # Get latest 10 emails
+    # 查找邮件
+    result, data = mail.search(None, f'(SINCE "{since_time.strftime("%d-%b-%Y")}")')
+    email_ids = data[0].split()[-10:]  # 取最新10封邮件
 
     for e_id in email_ids:
         result, msg_data = mail.fetch(e_id, '(RFC822)')
         msg = email.message_from_bytes(msg_data[0][1])
-        email_date = msg['Date']
-        email_subject, encoding = decode_header(msg['Subject'])[0]
+        
+        # 提取邮件信息
+        date = msg['Date']
+        subject = msg['Subject']
+        body = ''
+        
+        if msg.is_multipart():
+            for part in msg.walk():
+                if part.get_content_type() == 'text/plain':
+                    body = part.get_payload(decode=True).decode()
+        else:
+            body = msg.get_payload(decode=True).decode()
+        
+        # 发送到 Telegram
+        message = f"时间: {date}\n标题: {subject}\n正文:\n{body}"
+        send_to_telegram(message)
 
-        if isinstance(email_subject, bytes):
-            email_subject = email_subject.decode(encoding if encoding else 'utf-8')
+    # 记录当前时间
+    with open('time.txt', 'w') as f:
+        f.write(datetime.now().isoformat())
 
-        email_time = parse_email_date(email_date)
-
-        if email_time > last_checked_time and '新短信' in email_subject:
-            # 处理邮件正文
-            email_body = msg.get_payload(decode=True)
-            if email_body is not None:
-                email_body = email_body.decode(errors='ignore')  # 忽略解码错误
-                # Send to Telegram
-                message = f"{email_date} - {email_subject}\n{email_body}"
-                requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", data={"chat_id": telegram_chat_id, "text": message})
-
-    # Update last checked time
-    with open('last_checked.txt', 'w') as f:
-        f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    mail.logout()
 
 if __name__ == "__main__":
-    GMAIL_USER = os.environ['GMAIL_USER']
-    GMAIL_PASSWORD = os.environ['GMAIL_PASSWORD']
-    TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
-    TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
-
-    read_emails(GMAIL_USER, GMAIL_PASSWORD, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
+    main()
