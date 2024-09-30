@@ -4,9 +4,10 @@ from email.header import decode_header
 import time
 import requests
 from datetime import datetime
+import os
 
-# Connect to Gmail IMAP server
 def read_emails(gmail_user, gmail_password, telegram_token, telegram_chat_id):
+    # Connect to Gmail IMAP server
     mail = imaplib.IMAP4_SSL('imap.gmail.com')
     mail.login(gmail_user, gmail_password)
     mail.select('inbox')
@@ -43,8 +44,6 @@ def read_emails(gmail_user, gmail_password, telegram_token, telegram_chat_id):
         f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
 if __name__ == "__main__":
-    import os
-
     GMAIL_USER = os.environ['GMAIL_USER']
     GMAIL_PASSWORD = os.environ['GMAIL_PASSWORD']
     TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
