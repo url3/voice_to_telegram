@@ -47,8 +47,13 @@ def main():
         else:
             body = msg.get_payload(decode=True).decode()
         
+        # 创建消息
+        message = f"时间: {date}\n标题: {subject}"
+        
+        # 打印到控制台
+        print(message)
+        
         # 发送到 Telegram
-        message = f"时间: {date}\n标题: {subject}\n正文:\n{body}"
         send_to_telegram(message)
 
     # 记录当前时间
