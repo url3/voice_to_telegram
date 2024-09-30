@@ -22,8 +22,8 @@ def main():
     # 获取上次记录的时间
     try:
         with open('time.txt', 'r') as f:
-            since_time = f.read().strip()
-            since_time = datetime.fromisoformat(since_time)
+            since_time_str = f.read().strip()
+            since_time = datetime.strptime(since_time_str, '%a %b %d %H:%M:%S %Z %Y')
     except FileNotFoundError:
         since_time = datetime.now() - timedelta(days=1)  # 默认获取过去一天的邮件
 
@@ -53,7 +53,7 @@ def main():
 
     # 记录当前时间
     with open('time.txt', 'w') as f:
-        f.write(datetime.now().isoformat())
+        f.write(datetime.now().strftime('%a %b %d %H:%M:%S %Z %Y'))
 
     mail.logout()
 
