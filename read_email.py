@@ -6,6 +6,12 @@ import requests
 from datetime import datetime
 import os
 
+def parse_email_date(email_date):
+    parsed_date = email.utils.parsedate(email_date)
+    if parsed_date is not None:
+        return time.mktime(parsed_date)
+    return None
+
 def read_emails(gmail_user, gmail_password, telegram_token, telegram_chat_id):
     # Connect to Gmail IMAP server
     mail = imaplib.IMAP4_SSL('imap.gmail.com')
@@ -18,6 +24,8 @@ def read_emails(gmail_user, gmail_password, telegram_token, telegram_chat_id):
             last_checked = f.read().strip()
     except FileNotFoundError:
         last_checked = '1970-01-01 00:00:00'
+
+    last_checked_time = parse_email_date(last_checked)
 
     # Fetch latest emails
     result, data = mail.search(None, 'ALL')
@@ -32,8 +40,10 @@ def read_emails(gmail_user, gmail_password, telegram_token, telegram_chat_id):
         if isinstance(email_subject, bytes):
             email_subject = email_subject.decode(encoding if encoding else 'utf-8')
 
-        if '新短信' in email_subject:
-            if time.mktime(email.utils.parsedate(email_date)) > time.mktime(email.utils.parsedate(last_checked)):
+        email_time = parse_email_date(email_date)
+
+        if email_time is not None and '新短信' in email_subject:
+            if email_time > last_checked_time:
                 email_body = msg.get_payload(decode=True).decode()
                 # Send to Telegram
                 message = f"{email_date} - {email_subject}\n{email_body}"
