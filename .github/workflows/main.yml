@@ -1,0 +1,98 @@
+name: Read Gmail and Send to Telegram
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # 每十分钟执行一次
+  workflow_dispatch:  # 允许手动执行
+
+jobs:
+  read_and_send_sms:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install imaplib2 requests
+
+    - name: Read Gmail and send to Telegram
+      env:
+        GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
+        GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+      run: |
+        import os
+        import imaplib
+        import email
+        import requests
+        from datetime import datetime
+
+        # 登录到 Gmail
+        mail = imaplib.IMAP4_SSL('imap.gmail.com')
+        mail.login(os.getenv('GMAIL_USERNAME'), os.getenv('GMAIL_PASSWORD'))
+        mail.select('inbox')
+
+        # 读取上一次存储的时间
+        try:
+            with open('LAST_SMS_TIME.txt', 'r') as f:
+                last_sms_time = datetime.fromisoformat(f.read().strip())
+        except FileNotFoundError:
+            last_sms_time = datetime.now()  # 默认值
+
+        # 搜索未读邮件
+        result, data = mail.search(None, 'UNSEEN')
+        email_ids = data[0].split()
+
+        last_sent_time = None
+
+        for email_id in email_ids:
+            # 获取邮件
+            result, msg_data = mail.fetch(email_id, '(RFC822)')
+            msg = email.message_from_bytes(msg_data[0][1])
+            msg_date = email.utils.parsedate_to_datetime(msg['Date'])
+
+            if msg_date <= last_sms_time:
+                continue  # 跳过已处理的邮件
+
+            # 提取邮件内容
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == 'text/plain':
+                        decoded_data = part.get_payload(decode=True).decode(part.get_content_charset())
+                        # 筛选 Google Voice 短信
+                        if 'Google Voice' in decoded_data:
+                            # 发送到 Telegram
+                            telegram_message = f"短信内容: {decoded_data}\n发信时间: {msg_date}"
+                            telegram_url = f"https://api.telegram.org/bot{os.getenv('TELEGRAM_BOT_TOKEN')}/sendMessage"
+                            requests.post(telegram_url, data={
+                                'chat_id': os.getenv('TELEGRAM_CHANNEL_ID'),
+                                'text': telegram_message
+                            })
+
+                            last_sent_time = msg_date
+
+        mail.logout()
+
+        # 更新 LAST_SMS_TIME
+        if last_sent_time:
+            with open('LAST_SMS_TIME.txt', 'w') as f:
+                f.write(last_sent_time.isoformat())
+
+    - name: Commit LAST_SMS_TIME.txt
+      env:
+        ACCESS_TOKEN: ${{ secrets.PAT_TOKEN }}  # 使用 Personal Access Token
+      run: |
+        git config --global user.name "github-actions"
+        git config --global user.email "actions@github.com"
+        git add LAST_SMS_TIME.txt
+        git commit -m "Update LAST_SMS_TIME"
+        git push https://x-access-token:${ACCESS_TOKEN}@github.com/${{ github.repository }} HEAD:main
