@@ -10,7 +10,7 @@ def parse_email_date(email_date):
     parsed_date = email.utils.parsedate(email_date)
     if parsed_date is not None:
         return time.mktime(parsed_date)
-    return None
+    return 0  # 返回一个最小值以避免比较时出错
 
 def read_emails(gmail_user, gmail_password, telegram_token, telegram_chat_id):
     # Connect to Gmail IMAP server
@@ -42,12 +42,11 @@ def read_emails(gmail_user, gmail_password, telegram_token, telegram_chat_id):
 
         email_time = parse_email_date(email_date)
 
-        if email_time is not None and '新短信' in email_subject:
-            if email_time > last_checked_time:
-                email_body = msg.get_payload(decode=True).decode()
-                # Send to Telegram
-                message = f"{email_date} - {email_subject}\n{email_body}"
-                requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", data={"chat_id": telegram_chat_id, "text": message})
+        if email_time > last_checked_time and '新短信' in email_subject:
+            email_body = msg.get_payload(decode=True).decode()
+            # Send to Telegram
+            message = f"{email_date} - {email_subject}\n{email_body}"
+            requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", data={"chat_id": telegram_chat_id, "text": message})
 
     # Update last checked time
     with open('last_checked.txt', 'w') as f:
