@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install imaplib2 python-telegram-bot
+          pip install imaplib2 requests python-telegram-bot
 
       - name: Read emails
         env:
@@ -39,4 +39,4 @@ jobs:
           git commit -m "Update last checked time"
           git push
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
