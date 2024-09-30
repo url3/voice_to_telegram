@@ -43,10 +43,13 @@ def read_emails(gmail_user, gmail_password, telegram_token, telegram_chat_id):
         email_time = parse_email_date(email_date)
 
         if email_time > last_checked_time and '新短信' in email_subject:
-            email_body = msg.get_payload(decode=True).decode()
-            # Send to Telegram
-            message = f"{email_date} - {email_subject}\n{email_body}"
-            requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", data={"chat_id": telegram_chat_id, "text": message})
+            # 处理邮件正文
+            email_body = msg.get_payload(decode=True)
+            if email_body is not None:
+                email_body = email_body.decode(errors='ignore')  # 忽略解码错误
+                # Send to Telegram
+                message = f"{email_date} - {email_subject}\n{email_body}"
+                requests.post(f"https://api.telegram.org/bot{telegram_token}/sendMessage", data={"chat_id": telegram_chat_id, "text": message})
 
     # Update last checked time
     with open('last_checked.txt', 'w') as f:
