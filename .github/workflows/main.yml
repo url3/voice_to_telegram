@@ -89,10 +89,10 @@ jobs:
 
     - name: Commit LAST_SMS_TIME.txt
       env:
-        ACCESS_TOKEN: ${{ secrets.PAT_TOKEN }}  # 使用 Personal Access Token
+        GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}  # 使用 Personal Access Token
       run: |
         git config --global user.name "github-actions"
         git config --global user.email "actions@github.com"
         git add LAST_SMS_TIME.txt
         git commit -m "Update LAST_SMS_TIME"
-        git push https://x-access-token:${ACCESS_TOKEN}@github.com/${{ github.repository }} HEAD:main
+        git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main
